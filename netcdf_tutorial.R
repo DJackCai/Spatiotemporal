@@ -6,6 +6,7 @@
 library(ncdf4)
 library(raster)
 library(RColorBrewer)
+
 # 1. Read the ncdf file  ###########
 
 target_date = "20191114"
@@ -43,8 +44,8 @@ tair_tunits = ncatt_get(tair_o, "time", "units")
 
 # Get the measurement/target variable
 tair_array = ncvar_get(tair_o, varid = "Tair")
+# Get the scale factor attribute
 tair_scalefac = ncatt_get(tair_o, varid = "Tair", attname = "scale_factor")
-
 
 # Get global attribute
 
@@ -65,10 +66,9 @@ table(is.na(tair_array[, , 1]))  # view number of missing values in one raster s
 # FALSE     TRUE 
 # 7715670 10883679 
 
-# Number of temperature values on Australian continent is 7715670 
+# Number of temperature values on Australian continent is 10883679 
 
 ##### 2.2. Get single "time slice" of data in R dataframe #######
-
 
 tair_slice = tair_array[, , 1]
 dim(tair_slice) # 4651 * 3999 data grid 
@@ -78,16 +78,15 @@ dim(tair_slice) # 4651 * 3999 data grid
 summary(c(tair_slice), na.rm = T)  # 5-37 degrees 
 
 
-###### levelplot -  ggplot-like visualisation of one map #########
-
-tair_slice[is.na(tair_slice) == F]  # non-missing data 
+###### 2.3. Visualisation of raster data by levelplot #########
+###### Data frame driven: ggplot-like visualisation of one map 
 
 tair_grid = expand.grid(x = tair_lon, y = tair_lat ) 
 tair_df_0000 = data.frame(cbind(tair_grid, tair = as.vector(tair_slice)))
 
 cutpts = seq(0,40,5); cuts = 11
 
-col_ramp_discrete = rev(brewer.pal(10, "Spectral"))
+col_ramp_discrete = rev(brewer.pal(10, "Spectral"))  # cuts = 11, 10 classes in total 
 
 # plot by variable name, so that locations and value are matched
 levelplot(tair ~ x * y, data = tair_df_0000, at = cutpts , cuts = 11,
@@ -95,17 +94,20 @@ levelplot(tair ~ x * y, data = tair_df_0000, at = cutpts , cuts = 11,
 
 # 3. Compute summary statistics of maximum and minimum temperature ######
 
+# Load netcdf name to RasterBrick 
 tair_brick = brick(tair_name)
 class(tair_dailymax)
 
-# calc can apply a function for all layers in a RasterBrick object. The end result is a raster layer.
+# calc can apply a function for all layers in a RasterBrick object. 
+# The end result is a raster layer.
 tair_dailymax = calc(tair_brick, max)
 
 class(tair_dailymax)
 
-col_ramp_cts = colorRampPalette(col_ramp_discrete)  # create interpolated ramp 
+# create interpolated colour ramp template
+col_ramp_cts = colorRampPalette(col_ramp_discrete)  
 
-# plot raster is much quicker
+# plot raster - quicker than specifying x-y coordinates in data frame
 plot(tair_dailymax, col = col_ramp_cts(255))        # ...(255) to set up the continous colour ramp!
 
 
