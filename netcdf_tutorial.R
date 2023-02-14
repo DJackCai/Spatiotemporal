@@ -25,6 +25,7 @@ tair_lon = ncvar_get(tair_o, "x")
 tair_lat = ncvar_get(tair_o, "y")
 print(c(dim(tair_lon), dim(tair_lat)))  # 4651 * 3999
 
+
 head(tair_lon) ; head(tair_lat)
 
 # time step
@@ -62,7 +63,6 @@ tair_array[tair_array == fillvalue] == NA
 table(is.na(tair_array[, , 1]))  # view number of missing values in one raster slice
 
 # > table(is.na(tair_array[, , 1]))
-# 
 # FALSE     TRUE 
 # 7715670 10883679 
 
@@ -111,5 +111,77 @@ col_ramp_cts = colorRampPalette(col_ramp_discrete)
 plot(tair_dailymax, col = col_ramp_cts(255))        # ...(255) to set up the continous colour ramp!
 
 
+##### 3.2 Reshape the raster brick into array ##########
+
+# use the as.data.frame functionality in raster package
+# must specify xy=T to get the coordinates 
+tair_dailymax_df = raster::as.data.frame(tair_dailymax, xy = T)
+
+tair_dailymax_mat = raster::as.matrix(tair_dailymax)
+
+# IMPORTANT: matrix for putting in values: rows being x, cols being y 
+tair_dailymax_mat_val = as.array(t(tair_dailymax_mat))
+
+# 4. Write the maximum temperature raster to netcdf file #######
+
+tair_brick
+crs(tair_brick) = "EPSG:3577"  # specify the coordinate reference system 
+
+ncpath = "./"
+ncname = paste0(target_date, "_daily_maxtemp.nc")
+nc_fn = paste0(ncpath, ncname)
+
+dname = "tmp"
+
+##### 4.1 Define dimensions and variables in the file ########
+
+lon_seq = tair_lon   
+lat_seq = tair_lat
+time_steps = 1 
+
+# define dimensions using specific dimension value 
+
+londim = ncdim_def("x", "easting", as.double(lon_seq))
+latdim = ncdim_def("y", "northing", as.double(lat_seq))
+timedim = ncdim_def("time", "hours", as.double(time_steps))
+
+# define variable:  
+# dimension needs to be the "ncdim4" class objects
+
+fillvalue = 1e10 
+dlname = "tair_daily_maximum"          # optional long name
+
+tair_dailymax_def = ncvar_def(name = "dailymax", units = "°C", 
+                              dim = list(londim, latdim) , missval = fillvalue, 
+                              longname = dlname, prec = "single")
+
+##### 4.2 Create netCDF files and put in the data #####
+
+ncout_maxtemp = nc_create(filename = nc_fn, vars = list(tair_dailymax_def), force_v4 = T)
+
+# write into the variable 
+ncvar_put(nc = ncout_maxtemp, varid = tair_dailymax_def, vals = tair_dailymax_mat_val)
+
+# write into additional attribute for dimension and variable 
+# Variable name needs to match e.g. "y" as defined previously 
+ncatt_put(nc = ncout_maxtemp, varid = "x", attname = "axis", attval = "X")
+ncatt_put(nc = ncout_maxtemp,varid = "y", attname = "axis", attval = "Y")
+# ncatt_put(ncout_maxtemp,"time","axis","T")
+
+# add global attributes
+
+ncatt_put(ncout_maxtemp, 0, "title", "Maximum air temperature data on 20191114 at 1km all Oz")
+ncatt_put(ncout_maxtemp, 0, "institution", "CSIRO")
+
+# close the file 
+nc_close(ncout_maxtemp)
+
+
+##### 4.3 check whether the data has been created correctly #######
+
+maxtemp_o = nc_open("20191114_daily_maxtemp.nc")
+maxtemp_brick = brick("20191114_daily_maxtemp.nc")
+
+plot(maxtemp_brick,  col = col_ramp_cts(255))  # confirm that it's correct 
 
 
